@@ -1,0 +1,2192 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Gallery</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    animation: { 'bounce-slow': 'bounce 3s infinite' }
+                }
+            }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        
+        /* Glassmorphism */
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        .dark .glass-nav {
+            background: rgba(15, 23, 42, 0.7);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Smooth Image Loading Class */
+        .img-loading { opacity: 0; transform: scale(1.05); filter: blur(10px); }
+        .img-loaded { opacity: 1; transform: scale(1); filter: blur(0); transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        /* Animations */
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-enter { animation: fadeInScale 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        @keyframes heartBeat {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.4); }
+            100% { transform: scale(1); }
+        }
+        .animate-heart { animation: heartBeat 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+        @keyframes unlockPulse {
+            0% { background-color: rgba(34, 197, 94, 0); }
+            50% { background-color: rgba(34, 197, 94, 0.2); }
+            100% { background-color: rgba(34, 197, 94, 0); }
+        }
+        .animate-unlock { animation: unlockPulse 0.5s ease-in-out; }
+
+        @keyframes progressFill {
+            from { width: 0%; }
+            to { width: 100%; }
+        }
+        .story-progress-bar.active .fill {
+            animation: progressFill 3.5s linear forwards;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+
+        /* Toast Animation */
+        .toast-visible { transform: translate(-50%, 0) !important; opacity: 1 !important; }
+
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -6px; 
+            box-shadow: 0 0 0 2px white;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+        }
+
+        /* Checkbox Switch */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #3b82f6;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #3b82f6;
+        }
+
+        /* Color Dots */
+        .color-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 2px solid rgba(255,255,255,0.5);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .color-dot:hover { transform: scale(1.2); }
+        .color-dot.selected { transform: scale(1.2); border-color: #3b82f6; }
+        
+        /* Color Palette Tooltip */
+        .palette-tooltip {
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .group:hover .palette-tooltip, .palette-tooltip:hover {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        /* Selection Mode */
+        .photo-select-overlay {
+            background: rgba(0,0,0,0.4);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .photo-card.selecting .photo-select-overlay {
+            opacity: 1;
+        }
+        .photo-card.selected .photo-select-overlay {
+            background: rgba(59, 130, 246, 0.4);
+            opacity: 1;
+            border: 4px solid #3b82f6;
+        }
+        .check-circle {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid white;
+            background: rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: transparent;
+            transition: all 0.2s;
+        }
+        .photo-card.selected .check-circle {
+            background: #3b82f6;
+            border-color: #3b82f6;
+            color: white;
+        }
+    </style>
+</head>
+<body id="app-body" class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-500 flex flex-col min-h-screen selection:bg-blue-500 selection:text-white">
+
+    <nav class="fixed top-0 w-full z-50 glass-nav transition-all duration-300">
+        <div class="container mx-auto px-4 h-16 flex justify-between items-center">
+            <div class="flex items-center gap-2 sm:gap-3 cursor-pointer group" onclick="window.location.reload()">
+                <div class="w-9 h-9 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-600/20 group-hover:scale-105 transition-transform flex-shrink-0">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <h1 class="block text-lg font-bold tracking-tight">Smart<span class="text-blue-600">Gallery</span></h1>
+            </div>
+            
+            <div class="flex items-center gap-2 sm:gap-3 flex-grow justify-end">
+                
+                <!-- Enhanced Search Bar with Color Palette -->
+                <div class="relative group z-50">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors text-xs sm:text-sm"></i>
+                    
+                    <input type="text" id="searchInput" placeholder="Search..." 
+                        class="bg-white/50 dark:bg-slate-800/50 border border-transparent focus:border-blue-500/50 rounded-full py-2 pl-9 pr-10 text-xs sm:text-sm w-28 sm:w-64 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all placeholder-slate-400 dark:text-white backdrop-blur-sm">
+                    
+                    <!-- Palette Icon inside Search -->
+                    <div class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-blue-500 transition-colors pb-4 pt-4" style="padding-bottom: 0; padding-top: 0;"> 
+                        <i class="fa-solid fa-palette"></i>
+                    </div>
+
+                    <!-- Color Picker Dropdown -->
+                    <div class="palette-tooltip absolute right-0 top-10 p-3 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 w-auto min-w-[180px] flex flex-wrap gap-2 justify-center z-50">
+                        <div class="w-full text-[10px] font-bold text-slate-400 text-center mb-1 uppercase tracking-wider">Filter by Color</div>
+                        <div class="color-dot bg-red-500" onclick="filterByColor('red')" title="Red"></div>
+                        <div class="color-dot bg-orange-500" onclick="filterByColor('orange')" title="Orange"></div>
+                        <div class="color-dot bg-yellow-400" onclick="filterByColor('yellow')" title="Yellow"></div>
+                        <div class="color-dot bg-green-500" onclick="filterByColor('green')" title="Green"></div>
+                        <div class="color-dot bg-blue-500" onclick="filterByColor('blue')" title="Blue"></div>
+                        <div class="color-dot bg-purple-500" onclick="filterByColor('purple')" title="Purple"></div>
+                        <div class="color-dot bg-pink-500" onclick="filterByColor('pink')" title="Pink"></div>
+                        <div class="color-dot bg-black border-slate-300" onclick="filterByColor('black')" title="Dark"></div>
+                        <div class="color-dot bg-white" onclick="filterByColor('white')" title="Light"></div>
+                        <div class="w-full text-center mt-1">
+                            <span onclick="clearColorFilter()" class="text-[10px] text-blue-500 cursor-pointer hover:underline">Clear</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="openStats()" class="w-9 h-9 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-blue-50 dark:hover:bg-slate-800 border border-transparent hover:border-blue-200 dark:hover:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 transition-all flex-shrink-0 backdrop-blur-sm" title="View Statistics">
+                    <i class="fa-solid fa-chart-pie text-sm"></i>
+                </button>
+
+                <button onclick="toggleTheme()" class="w-9 h-9 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-yellow-50 dark:hover:bg-slate-800 border border-transparent hover:border-yellow-200 dark:hover:border-slate-700 flex items-center justify-center text-slate-600 dark:text-yellow-400 transition-all flex-shrink-0 backdrop-blur-sm">
+                    <i class="fa-solid fa-moon dark:hidden text-sm"></i>
+                    <i class="fa-solid fa-sun hidden dark:block text-sm"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="h-24"></div>
+
+    <main class="container mx-auto px-4 sm:px-6 flex-grow relative">
+
+        <div id="people-view" class="animate-enter pb-12">
+            <!-- Memories Widget -->
+            <div id="memories-container" class="hidden mb-10 group cursor-pointer transition-transform hover:scale-[1.01]" onclick="openMemory()">
+                <div class="relative h-48 sm:h-56 rounded-3xl overflow-hidden shadow-lg shadow-blue-900/20">
+                    <!-- Background Image with Blur -->
+                    <img id="memory-bg" src="" class="absolute inset-0 w-full h-full object-cover filter blur-xl opacity-60 scale-110">
+                    <div class="absolute inset-0 bg-gradient-to-r from-slate-900/80 via-slate-900/40 to-transparent"></div>
+                    
+                    <!-- Content -->
+                    <div class="absolute inset-0 p-6 sm:p-8 flex items-center">
+                        <div class="flex items-center gap-6 w-full">
+                            <!-- Featured Photo Card -->
+                            <div class="relative w-28 h-36 sm:w-32 sm:h-40 flex-shrink-0 transform -rotate-3 shadow-2xl transition-transform duration-500 group-hover:rotate-0 group-hover:scale-105">
+                                <img id="memory-img" src="" class="w-full h-full object-cover rounded-xl border-2 border-white/20">
+                                <div class="absolute -bottom-3 -right-3 w-8 h-8 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-md text-blue-500">
+                                    <i class="fa-solid fa-play text-xs ml-0.5"></i>
+                                </div>
+                            </div>
+                            
+                            <!-- Text -->
+                            <div class="text-white">
+                                <span id="memory-tag" class="inline-block px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase tracking-wider mb-2">On This Day</span>
+                                <h3 id="memory-title" class="text-2xl sm:text-3xl font-black leading-tight mb-1">Rediscover<br>Memories</h3>
+                                <p id="memory-date" class="text-blue-200 font-medium text-sm">1 Year Ago</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+                <div>
+                    <h2 id="greeting" class="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">Albums</h2>
+                    <p class="text-slate-500 dark:text-slate-400 mt-1 text-sm font-medium">Your memories, automatically organized.</p>
+                </div>
+                <div id="album-count" class="text-xs font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-full">Loading...</div>
+            </div>
+            
+            <div id="people-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+                </div>
+            <div id="no-albums" class="hidden text-center py-20">
+                <p class="text-slate-500 dark:text-slate-400">No albums match your search.</p>
+            </div>
+        </div>
+
+        <div id="gallery-view" class="hidden animate-enter pb-12">
+            <div class="sticky top-20 z-30 -mx-4 px-4 sm:mx-0 sm:px-0 mb-8">
+                <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 shadow-lg shadow-slate-200/20 dark:shadow-none rounded-2xl p-3 sm:p-4 flex items-center justify-between transition-all">
+                    <div class="flex items-center gap-4">
+                        <button onclick="goBack()" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900 transition-all shadow-sm">
+                            <i class="fa-solid fa-arrow-left text-sm"></i>
+                        </button>
+                        <div class="flex items-center gap-3">
+                            <div id="header-avatar-container" class="w-10 h-10 rounded-full overflow-hidden shadow-md ring-2 ring-white dark:ring-slate-700 flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+                                <img id="header-avatar" src="" class="w-full h-full object-cover opacity-0 transition-opacity duration-500" onload="this.classList.remove('opacity-0')">
+                                <i id="header-icon" class="hidden fa-solid fa-layer-group text-blue-500 text-lg"></i>
+                            </div>
+                            <div class="leading-tight">
+                                <h2 id="header-name" class="text-lg font-bold text-slate-900 dark:text-white">Name</h2>
+                                <p id="header-count" class="text-xs text-slate-500 dark:text-slate-400 font-medium">0 Photos</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-2">
+                        <!-- Collage Action Button (Hidden by default) -->
+                        <button onclick="generateCollage()" id="collage-btn" class="hidden px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-lg shadow-blue-500/30 animate-enter">
+                            Create Collage <span id="collage-count" class="ml-1 bg-white/20 px-1.5 rounded-full text-[9px]">0</span>
+                        </button>
+
+                        <!-- Select Mode Button -->
+                        <button onclick="toggleSelectionMode()" id="select-btn" class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition flex items-center justify-center shadow-sm" title="Select Mode">
+                            <i class="fa-solid fa-check-double"></i>
+                        </button>
+
+                        <!-- View Settings Button -->
+                        <div class="relative">
+                            <button onclick="toggleViewSettings()" id="settings-btn" class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition flex items-center justify-center shadow-sm" title="View Options">
+                                <i class="fa-solid fa-sliders"></i>
+                            </button>
+                            <div id="view-settings-dropdown" class="hidden absolute right-0 top-12 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-40 p-3 animate-enter">
+                                <div class="space-y-4">
+                                    <div>
+                                        <p class="text-[10px] uppercase font-bold text-slate-400 mb-2">Grid Layout</p>
+                                        <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                                            <button onclick="setGridType('masonry')" class="flex-1 py-1.5 rounded-md text-xs font-medium transition-colors" id="btn-masonry">Masonry</button>
+                                            <button onclick="setGridType('square')" class="flex-1 py-1.5 rounded-md text-xs font-medium transition-colors" id="btn-square">Square</button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] uppercase font-bold text-slate-400 mb-2">Thumbnail Size</p>
+                                        <div class="flex justify-between items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg px-2">
+                                            <button onclick="setGridSize('small')" class="w-8 h-8 rounded hover:bg-white dark:hover:bg-slate-700 transition flex items-center justify-center text-slate-500" id="btn-size-s"><i class="fa-solid fa-border-all text-xs"></i></button>
+                                            <button onclick="setGridSize('medium')" class="w-8 h-8 rounded hover:bg-white dark:hover:bg-slate-700 transition flex items-center justify-center text-slate-500" id="btn-size-m"><i class="fa-solid fa-border-all text-sm"></i></button>
+                                            <button onclick="setGridSize('large')" class="w-8 h-8 rounded hover:bg-white dark:hover:bg-slate-700 transition flex items-center justify-center text-slate-500" id="btn-size-l"><i class="fa-solid fa-border-all text-lg"></i></button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center justify-between cursor-pointer" onclick="toggleInfoVisibility()">
+                                            <span class="text-xs font-medium text-slate-700 dark:text-slate-300">Show File Info</span>
+                                            <div class="w-8 h-4 bg-slate-200 dark:bg-slate-700 rounded-full relative transition-colors" id="info-toggle-bg">
+                                                <div class="w-4 h-4 bg-white rounded-full shadow absolute left-0 transition-all transform" id="info-toggle-dot"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button onclick="toggleGalleryView()" id="view-toggle-btn" class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition flex items-center justify-center shadow-sm" title="Toggle Timeline/Grid">
+                            <i class="fa-solid fa-calendar-days"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="photo-container"></div>
+
+            <div id="empty-state" class="hidden text-center py-32">
+                <div class="w-20 h-20 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300 dark:text-slate-600">
+                    <i class="fa-regular fa-image text-3xl"></i>
+                </div>
+                <p class="text-slate-400 dark:text-slate-500 font-medium">It's looking a bit empty here.</p>
+            </div>
+        </div>
+
+        <div id="stats-view" class="hidden animate-enter pb-12">
+            <div class="mb-8 mt-4 flex items-center gap-4">
+                <button onclick="closeStats()" class="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-500 transition shadow-sm">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <div>
+                    <h2 class="text-3xl font-bold tracking-tight">Statistics</h2>
+                    <p class="text-slate-500 dark:text-slate-400 mt-1">Insights & Activity</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800">
+                    <h3 class="text-lg font-bold mb-8 flex items-center gap-2"><i class="fa-solid fa-chart-pie text-blue-500"></i> Composition</h3>
+                    <div class="flex flex-col sm:flex-row items-center gap-8">
+                        <div class="relative w-52 h-52 rounded-full shadow-2xl shadow-slate-200 dark:shadow-black/50 ring-8 ring-slate-50 dark:ring-slate-800 flex-shrink-0 mx-auto sm:mx-0" id="pie-chart-container">
+                            <div class="absolute inset-0 m-auto w-24 h-24 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center shadow-inner">
+                                <div class="text-center">
+                                    <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total</span>
+                                    <span class="block text-2xl font-black text-slate-800 dark:text-white" id="pie-total-count">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="w-full max-h-60 overflow-y-auto pr-2 scrollbar-thin">
+                            <div class="space-y-2" id="pie-legend"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800">
+                    <h3 class="text-lg font-bold mb-8 flex items-center gap-2"><i class="fa-solid fa-eye text-emerald-500"></i> Most Viewed</h3>
+                    <div class="mb-8 p-5 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-between border border-slate-100 dark:border-slate-700">
+                        <div>
+                            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total App Visits</span>
+                            <div class="text-3xl font-black text-slate-800 dark:text-white mt-1" id="total-app-visits">0</div>
+                        </div>
+                        <div class="w-12 h-12 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center text-xl shadow-sm">
+                            <i class="fa-solid fa-door-open text-slate-400"></i>
+                        </div>
+                    </div>
+                    <div class="space-y-4 max-h-60 overflow-y-auto pr-2 scrollbar-thin" id="visit-bars"></div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="secret-toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 dark:bg-white/95 text-white dark:text-slate-900 px-6 py-3 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-4 transition-all duration-500 translate-y-24 opacity-0 z-[60] transform">
+        <div class="flex items-center gap-2">
+            <i class="fa-solid fa-lock-open text-green-500"></i>
+            <span class="font-bold text-sm tracking-wide">Secret Albums Unlocked</span>
+        </div>
+        <button onclick="dismissToast()" class="text-white/50 dark:text-black/50 hover:text-white dark:hover:text-black transition-colors p-1">
+            <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+    </div>
+
+    <!-- Scanning Toast -->
+    <div id="scanning-toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-blue-600/95 text-white px-6 py-3 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-3 transition-all duration-300 translate-y-24 opacity-0 z-[70] transform">
+        <i class="fa-solid fa-spinner fa-spin"></i>
+        <span class="font-bold text-xs" id="scanning-msg">Scanning colors...</span>
+    </div>
+
+    <!-- Error Toast -->
+    <div id="error-toast" class="fixed top-6 left-1/2 -translate-x-1/2 bg-red-600/95 text-white px-6 py-3 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-3 transition-all duration-500 -translate-y-24 opacity-0 z-[70] transform">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <span class="font-bold text-xs" id="error-msg">Error</span>
+    </div>
+
+    <footer class="w-full py-8 mt-auto border-t border-slate-200 dark:border-slate-800 text-center">
+        <div class="flex flex-col items-center gap-1">
+            <span id="global-total-count" class="text-sm font-semibold text-slate-900 dark:text-slate-100">Loading...</span>
+            <span class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Synced Locally</span>
+        </div>
+    </footer>
+
+    <!-- Story Overlay -->
+    <div id="story-overlay" class="fixed inset-0 bg-black z-[100] hidden flex flex-col">
+        <!-- Progress Bars -->
+        <div id="story-bars" class="absolute top-0 w-full p-3 flex gap-1 z-20"></div>
+        
+        <!-- Header -->
+        <div class="absolute top-6 w-full px-4 flex justify-between items-center z-20 mt-4">
+            <div class="flex items-center gap-3">
+                <img id="story-avatar" src="" class="w-8 h-8 rounded-full border border-white/50">
+                <span id="story-user" class="text-white font-bold text-sm drop-shadow-md">Name</span>
+                <span id="story-time" class="text-white/70 text-xs drop-shadow-md">1h</span>
+            </div>
+            <button onclick="closeStory()" class="text-white/80 hover:text-white p-2"><i class="fa-solid fa-xmark text-xl"></i></button>
+        </div>
+
+        <!-- Touch Controls -->
+        <div class="absolute inset-0 z-10 flex">
+            <div class="w-[30%] h-full" onclick="prevStorySlide()"></div>
+            <div class="w-[70%] h-full" onclick="nextStorySlide()"></div>
+        </div>
+
+        <!-- Image -->
+        <img id="story-image" class="w-full h-full object-contain bg-black">
+        
+        <!-- Footer -->
+        <div class="absolute bottom-8 w-full text-center z-20 pointer-events-none">
+            <i class="fa-solid fa-angle-up text-white/50 animate-bounce"></i>
+        </div>
+    </div>
+
+    <!-- Collage Modal -->
+    <div id="collage-modal" class="fixed inset-0 bg-black/90 z-[110] hidden flex flex-col items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 max-w-md w-full shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">Collage Preview</h3>
+                <button onclick="closeCollageModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="relative w-full aspect-square bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden mb-4 flex items-center justify-center">
+                <img id="collage-result" class="max-w-full max-h-full shadow-sm">
+                <div id="collage-loading" class="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/50 hidden">
+                    <i class="fa-solid fa-circle-notch fa-spin text-blue-600 text-2xl"></i>
+                </div>
+            </div>
+            <button onclick="saveCollage()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition shadow-lg shadow-blue-500/20">
+                <i class="fa-solid fa-download mr-2"></i> Save to Device
+            </button>
+        </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md hidden flex items-center justify-center opacity-0 transition-opacity duration-300 select-none">
+        <div class="absolute top-0 left-0 w-full h-1 bg-white/10 z-50"><div id="slideshow-progress" class="h-full bg-blue-500 w-0"></div></div>
+        
+        <!-- Lightbox Toolbar (CLEAN & COLLAPSIBLE) -->
+        <div id="lb-toolbar" class="absolute top-0 left-0 w-full p-4 flex justify-between items-center z-50 pointer-events-none transition-transform duration-300">
+            <span id="lb-counter" class="text-white/80 font-mono text-xs pointer-events-auto bg-white/10 border border-white/10 px-3 py-1.5 rounded-full backdrop-blur-md">1 / 1</span>
+            
+            <div class="flex items-center gap-2 pointer-events-auto">
+                <!-- Collapsible Tools Container -->
+                <div id="lb-tools-panel" class="flex items-center gap-2 overflow-hidden w-0 opacity-0 transition-all duration-300 ease-out origin-right">
+                    <button onclick="findSimilar()" class="w-10 h-10 rounded-full bg-purple-600/20 hover:bg-purple-600 border border-purple-500/30 text-purple-400 hover:text-white transition flex items-center justify-center flex-shrink-0" title="Find Similar"><i class="fa-solid fa-wand-magic-sparkles text-sm"></i></button>
+                    <button id="lb-edit-btn" onclick="openEditor()" class="w-10 h-10 rounded-full bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-400 hover:text-white transition flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-sliders text-sm"></i></button>
+                    <button id="lb-play-btn" onclick="toggleSlideshow()" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white transition flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-play text-sm"></i></button>
+                    <button onclick="downloadCurrentImage()" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white transition flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-download text-sm"></i></button>
+                </div>
+
+                <!-- Toggle Button -->
+                <button onclick="toggleLbTools()" id="lb-tools-toggle" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white transition flex items-center justify-center">
+                    <i class="fa-solid fa-ellipsis"></i>
+                </button>
+
+                <!-- Always Visible -->
+                <button id="lb-fav-btn" onclick="toggleFavoriteCurrent()" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white transition flex items-center justify-center group"><i class="fa-regular fa-heart text-lg group-hover:scale-110 transition-transform"></i></button>
+                <button onclick="closeLightbox()" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white transition flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+
+        <!-- Editor Controls (Hidden by default) -->
+        <div id="editor-ui" class="hidden absolute bottom-0 w-full bg-slate-900/95 backdrop-blur-xl border-t border-white/10 z-[60] flex flex-col pointer-events-auto transition-transform duration-300 translate-y-full">
+            <div class="flex justify-between items-center p-4 border-b border-white/5">
+                <span class="text-white font-bold text-sm tracking-wide">Image Editor</span>
+                <div class="flex gap-2">
+                    <button onclick="closeEditor()" class="px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:bg-white/10 transition">Cancel</button>
+                    <button onclick="saveEdit()" class="px-4 py-1.5 rounded-full text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white transition shadow-lg shadow-blue-500/20">Save Copy</button>
+                </div>
+            </div>
+            <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto w-full">
+                <!-- Adjustments -->
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-xs text-slate-400 mb-1"><span>Brightness</span><span id="val-bright">100%</span></div>
+                        <input type="range" min="0" max="200" value="100" oninput="updateEditState('brightness', this.value)">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs text-slate-400 mb-1"><span>Contrast</span><span id="val-contrast">100%</span></div>
+                        <input type="range" min="0" max="200" value="100" oninput="updateEditState('contrast', this.value)">
+                    </div>
+                </div>
+                <!-- Transforms & Filters -->
+                <div class="space-y-4">
+                    <div class="flex gap-2">
+                        <button onclick="updateEditState('rotate', 90)" class="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs border border-white/10 transition"><i class="fa-solid fa-rotate-right mr-2"></i>Rotate</button>
+                        <button onclick="updateEditState('flipH', null)" class="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs border border-white/10 transition"><i class="fa-solid fa-right-left mr-2"></i>Flip</button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                         <button onclick="setFilter('none')" class="py-2 rounded-lg bg-blue-600 text-white text-[10px] font-bold border border-blue-500 transition filter-btn" data-filter="none">Normal</button>
+                         <button onclick="setFilter('grayscale')" class="py-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] border border-white/10 transition filter-btn" data-filter="grayscale">B&W</button>
+                         <button onclick="setFilter('sepia')" class="py-2 rounded-lg bg-white/5 hover:bg-white/10 text-amber-200/70 text-[10px] border border-white/10 transition filter-btn" data-filter="sepia">Sepia</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button id="lb-prev" onclick="prevImage()" class="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white flex items-center justify-center z-50 backdrop-blur-md transition cursor-pointer group active:scale-95"><i class="fa-solid fa-chevron-left text-xl group-hover:-translate-x-0.5 transition-transform"></i></button>
+        <button id="lb-next" onclick="nextImage()" class="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white flex items-center justify-center z-50 backdrop-blur-md transition cursor-pointer group active:scale-95"><i class="fa-solid fa-chevron-right text-xl group-hover:translate-x-0.5 transition-transform"></i></button>
+        
+        <div class="relative w-full h-full flex items-center justify-center p-4 sm:px-20 transition-all duration-300" id="lb-canvas-container">
+            <!-- IMPORTANT: crossOrigin="anonymous" added to allow canvas saving -->
+            <img id="lightbox-img" crossorigin="anonymous" src="" class="max-h-full max-w-full object-contain rounded-lg shadow-2xl shadow-black/50 scale-95 transition-transform duration-300 select-none touch-none">
+            <video id="lightbox-video" controls class="hidden max-h-full max-w-full rounded-lg shadow-2xl shadow-black/50"></video>
+            <div id="lb-caption-container" class="absolute bottom-8 text-center w-full px-12 pointer-events-none transition-opacity duration-300"><span id="lightbox-caption" class="inline-block bg-black/40 border border-white/10 text-white/90 px-4 py-2 rounded-full text-xs backdrop-blur-md font-mono truncate max-w-[90%]">filename.jpg</span></div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== CONFIG ====================
+        
+        const SECRET_HASH = "1506878371";
+        const HIDDEN_ALBUMS = [];
+        //const HIDDEN_ALBUMS = ["Maria","Orpa","Anchol","Mahi","Nuha","SaraR","Sara","Sumi","IDK","Ziniya","Nitu","Mahi2","Mariaa","Masi","Orpita","Banna","Taiyeba","Faria","Odity","Sadia","Spriha","Nusaiba","Ishat","Ritu2"];
+
+        const PATH_TO_THUMBS = "thumbnails/";
+        const PATH_TO_IMAGES = "images/";
+        const thumbnailMap = {
+    "Anchol": "anchol.jpg",
+    "IDK": "IDK.jpg",
+    "Ishat": "Ishat.jpg",
+    "Mahi": "Mahi.jpg",
+    "Pinky": "Pinky.jpg",
+    "Maria": "Maria.png",
+    "Mariaa": "Mariaa.jpg",
+    "Masi": "Masi.jpg",
+    "Nitu": "Nitu.jpg",
+    "Nuha": "nuha.jpg",
+    "Nusaiba": "Nusaiba.jpg",
+    "Orpa": "Orpa.png",
+    "Orpita": "Orpita.jpg",
+    "Ritu2": "Ritu2.jpg",
+    "Sara": "Sara.jpg",
+    "SaraR": "SaraR.jpg",
+    "Sumi": "Sumi.jpg",
+    "Ziniya": "Ziniya.jpg"
+};
+
+// ==================== DATA ====================
+    
+
+
+        // ==================== STATE ====================
+        let peopleData = {};
+        let currentGallery = []; 
+        let currentPhotoIndex = 0;
+        let userStats = { totalVisits: 0, albumViews: {} };
+        let favorites = new Set();
+        let activeView = 'people';
+        let activePerson = null;
+        let slideshowInterval = null;
+        let viewMode = 'grid'; 
+        let unlockedSecrets = []; 
+        let toastTimeout = null;
+        
+        // Editor State
+        let isEditing = false;
+        let editState = {
+            brightness: 100,
+            contrast: 100,
+            rotate: 0,
+            flipH: 1,
+            filter: 'none'
+        };
+
+        // View Preferences
+        let viewSettings = {
+            type: 'masonry', 
+            size: 'medium', 
+            showInfo: false
+        };
+        
+        // Memories State
+        let activeMemoryFile = null;
+
+        // Stories State
+        let storyData = {};
+        let currentStoryPerson = null;
+        let currentStoryIndex = 0;
+        let storyTimer = null;
+
+        // Color Search State
+        const colorCache = {}; 
+
+        // Selection/Collage State
+        let isSelecting = false;
+        let selectedPhotos = new Set();
+
+        // LB Tools State
+        let isLbToolsOpen = false;
+
+        function init() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+            const hour = new Date().getHours();
+            document.getElementById('greeting').innerText = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
+            loadFavorites();
+            loadViewSettings(); 
+            processImages();
+            loadUserStats();
+            userStats.totalVisits++;
+            saveUserStats();
+            
+            setupZoom(); 
+            renderThumbnails();
+            renderMemories(); 
+            document.getElementById('searchInput').addEventListener('input', handleSearch);
+            updateGlobalCount();
+        }
+
+        function updateGlobalCount() {
+            const visibleCount = getVisiblePhotos().length;
+            document.getElementById('global-total-count').innerText = `${visibleCount} Photos Synced`;
+        }
+
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+        }
+
+        // --- LOGIC ---
+        function simpleHash(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = (hash << 5) - hash + char;
+                hash = hash & hash; 
+            }
+            return hash.toString();
+        }
+
+        function processImages() {
+            peopleData = {};
+            rawFileList.forEach(filename => {
+                const cleanFile = filename.trim();
+                if (!cleanFile) return;
+                let namePart = "";
+                if (cleanFile.includes('-')) namePart = cleanFile.split('-')[0];
+                else if (cleanFile.includes('_')) namePart = cleanFile.split('_')[0];
+                else return;
+
+                let people = namePart.split('+');
+                people.forEach(rawName => {
+                    let cleanName = rawName.trim();
+                    if (cleanName.length > 0) {
+                        cleanName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+                        if (cleanName.toLowerCase() === 'idk') cleanName = "IDK";
+                    }
+                    if (['Img', 'Picsart'].includes(cleanName)) return;
+
+                    if (!peopleData[cleanName]) peopleData[cleanName] = { count: 0, photos: [] };
+                    peopleData[cleanName].count++;
+                    peopleData[cleanName].photos.push(cleanFile);
+                });
+            });
+            document.getElementById('album-count').innerText = `${Object.keys(peopleData).length} People`;
+        }
+
+        function isPhotoVisible(filename) {
+            const cleanFile = filename.trim();
+            let namePart = "";
+            if (cleanFile.includes('-')) namePart = cleanFile.split('-')[0];
+            else if (cleanFile.includes('_')) namePart = cleanFile.split('_')[0];
+            else return true; 
+
+            let people = namePart.split('+');
+            for (let rawName of people) {
+                let cleanName = rawName.trim();
+                if (cleanName.length > 0) {
+                    cleanName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+                    if (cleanName.toLowerCase() === 'idk') cleanName = "IDK";
+                }
+                if (HIDDEN_ALBUMS.includes(cleanName) && !unlockedSecrets.includes(cleanName)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function getVisiblePhotos() {
+            return rawFileList.filter(filename => isPhotoVisible(filename));
+        }
+
+        function getThumbUrl(name) {
+            let thumbSrc = `${PATH_TO_THUMBS}${name}.jpg`;
+            if (thumbnailMap[name]) thumbSrc = `${PATH_TO_THUMBS}${thumbnailMap[name]}`;
+            return thumbSrc;
+        }
+
+        function extractDate(filename) {
+            const match = filename.match(/(20\d{2})[-_]?((?:0[1-9]|1[0-2]))[-_]?((?:0[1-9]|[12][0-9]|3[01]))/);
+            if (match) return new Date(match[1], match[2]-1, match[3]);
+            return new Date(0); 
+        }
+
+        // --- COLLAGE LOGIC ---
+        function toggleSelectionMode() {
+            isSelecting = !isSelecting;
+            const btn = document.getElementById('select-btn');
+            const collageBtn = document.getElementById('collage-btn');
+            
+            if (isSelecting) {
+                btn.classList.add('bg-blue-600', 'text-white');
+                btn.classList.remove('bg-slate-100', 'text-slate-600', 'dark:bg-slate-800', 'dark:text-slate-300');
+                renderActiveGalleryContent(); 
+            } else {
+                btn.classList.remove('bg-blue-600', 'text-white');
+                btn.classList.add('bg-slate-100', 'text-slate-600', 'dark:bg-slate-800', 'dark:text-slate-300');
+                selectedPhotos.clear();
+                updateCollageButton();
+                renderActiveGalleryContent(); 
+            }
+        }
+
+        function togglePhotoSelection(filename) {
+            if (selectedPhotos.has(filename)) {
+                selectedPhotos.delete(filename);
+            } else {
+                if (selectedPhotos.size >= 4) {
+                    showError("Max 4 photos allowed for collage.");
+                    return;
+                }
+                selectedPhotos.add(filename);
+            }
+            updateCollageButton();
+            renderActiveGalleryContent();
+        }
+
+        function updateCollageButton() {
+            const btn = document.getElementById('collage-btn');
+            const count = document.getElementById('collage-count');
+            count.innerText = selectedPhotos.size;
+            
+            if (selectedPhotos.size >= 2) {
+                btn.classList.remove('hidden');
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+
+        async function generateCollage() {
+            if(selectedPhotos.size < 2) return;
+            
+            const modal = document.getElementById('collage-modal');
+            const loading = document.getElementById('collage-loading');
+            const resultImg = document.getElementById('collage-result');
+            
+            modal.classList.remove('hidden');
+            loading.classList.remove('hidden');
+            resultImg.classList.add('hidden');
+            
+            const images = Array.from(selectedPhotos);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            const size = 1200;
+            canvas.width = size;
+            canvas.height = size;
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0,0, size, size);
+            
+            const gap = 10;
+            
+            const loadedImgs = await Promise.all(images.map(src => {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = "Anonymous";
+                    img.src = `${PATH_TO_IMAGES}${src}`;
+                    img.onload = () => resolve(img);
+                    img.onerror = () => resolve(null); 
+                });
+            }));
+            
+            const validImgs = loadedImgs.filter(img => img !== null);
+            
+            if (validImgs.length === 2) {
+                drawImageProp(ctx, validImgs[0], 0, 0, size/2 - gap/2, size);
+                drawImageProp(ctx, validImgs[1], size/2 + gap/2, 0, size/2 - gap/2, size);
+            } else if (validImgs.length === 3) {
+                drawImageProp(ctx, validImgs[0], 0, 0, size/2 - gap/2, size);
+                drawImageProp(ctx, validImgs[1], size/2 + gap/2, 0, size/2 - gap/2, size/2 - gap/2);
+                drawImageProp(ctx, validImgs[2], size/2 + gap/2, size/2 + gap/2, size/2 - gap/2, size/2 - gap/2);
+            } else if (validImgs.length === 4) {
+                const half = size/2 - gap/2;
+                drawImageProp(ctx, validImgs[0], 0, 0, half, half);
+                drawImageProp(ctx, validImgs[1], size/2 + gap/2, 0, half, half);
+                drawImageProp(ctx, validImgs[2], 0, size/2 + gap/2, half, half);
+                drawImageProp(ctx, validImgs[3], size/2 + gap/2, size/2 + gap/2, half, half);
+            }
+            
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            resultImg.src = dataUrl;
+            
+            loading.classList.add('hidden');
+            resultImg.classList.remove('hidden');
+        }
+
+        function drawImageProp(ctx, img, x, y, w, h) {
+            let offsetX = 0.5;
+            let offsetY = 0.5;
+
+            if (offsetX < 0) offsetX = 0;
+            if (offsetY < 0) offsetY = 0;
+            if (offsetX > 1) offsetX = 1;
+            if (offsetY > 1) offsetY = 1;
+
+            var iw = img.width,
+                ih = img.height,
+                r = Math.min(w / iw, h / ih),
+                nw = iw * r,
+                nh = ih * r,
+                cx, cy, cw, ch, ar = 1;
+
+            if (nw < w) ar = w / nw;                             
+            if (Math.abs(ar - 1) < 1e-14 && nh < h) ar = h / nh; 
+            nw *= ar;
+            nh *= ar;
+
+            cw = iw / (nw / w);
+            ch = ih / (nh / h);
+
+            cx = (iw - cw) * offsetX;
+            cy = (ih - ch) * offsetY;
+
+            if (cx < 0) cx = 0;
+            if (cy < 0) cy = 0;
+            if (cw > iw) cw = iw;
+            if (ch > ih) ch = ih;
+
+            ctx.drawImage(img, cx, cy, cw, ch,  x, y, w, h);
+        }
+
+        function closeCollageModal() {
+            document.getElementById('collage-modal').classList.add('hidden');
+        }
+
+        function saveCollage() {
+            const img = document.getElementById('collage-result');
+            const link = document.createElement('a');
+            link.download = `smartgallery_collage_${Date.now()}.jpg`;
+            link.href = img.src;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            closeCollageModal();
+            toggleSelectionMode();
+        }
+
+        // --- COLOR SEARCH LOGIC ---
+        function clearColorFilter() {
+            document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
+            showGallery("All Photos"); 
+        }
+
+        async function filterByColor(targetColor) {
+            document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
+            document.querySelector(`.color-dot[title="${targetColor.charAt(0).toUpperCase() + targetColor.slice(1)}"]`)?.classList.add('selected');
+            
+            const toast = document.getElementById('scanning-toast');
+            document.getElementById('scanning-msg').innerText = `Scanning for ${targetColor}...`;
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            
+            const visible = getVisiblePhotos();
+            const matchingPhotos = [];
+            
+            for (const filename of visible) {
+                if(filename.toLowerCase().endsWith('.mp4')) continue;
+
+                let color = colorCache[filename];
+                if (!color) {
+                    try {
+                        color = await analyzeImageColor(`${PATH_TO_IMAGES}${filename}`);
+                        colorCache[filename] = color;
+                    } catch (e) {
+                        continue;
+                    }
+                }
+                
+                if (color === targetColor) {
+                    matchingPhotos.push(filename);
+                }
+            }
+
+            toast.classList.add('translate-y-24', 'opacity-0'); 
+            
+            if (matchingPhotos.length > 0) {
+                activePerson = 'All Photos';
+                activeView = 'gallery';
+                currentGallery = matchingPhotos;
+                
+                document.getElementById('header-name').innerText = `${targetColor.charAt(0).toUpperCase() + targetColor.slice(1)} Photos`;
+                document.getElementById('header-count').innerText = `${matchingPhotos.length} Found`;
+                
+                document.getElementById('header-avatar').classList.add('hidden');
+                document.getElementById('header-icon').classList.remove('hidden');
+                document.getElementById('header-icon').className = "fa-solid fa-palette text-purple-500 text-lg";
+                document.getElementById('header-avatar-container').className = "w-10 h-10 rounded-full shadow-sm ring-2 ring-white dark:ring-slate-700 flex items-center justify-center bg-purple-100 dark:bg-purple-900/30";
+                
+                viewMode = 'grid';
+                
+                document.getElementById('people-view').classList.add('hidden');
+                const galleryView = document.getElementById('gallery-view');
+                galleryView.classList.remove('hidden', 'animate-enter');
+                void galleryView.offsetWidth;
+                galleryView.classList.add('animate-enter');
+                
+                renderActiveGalleryContent();
+                window.scrollTo(0,0);
+            } else {
+                showError(`No matching photos found for ${targetColor}.`);
+            }
+        }
+
+        function analyzeImageColor(src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = "Anonymous";
+                img.src = src;
+                
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 50; 
+                    canvas.height = 50;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, 50, 50);
+                    
+                    try {
+                        const data = ctx.getImageData(0, 0, 50, 50).data;
+                        let r=0, g=0, b=0, count=0;
+                        
+                        for (let i = 0; i < data.length; i += 4) {
+                            r += data[i];
+                            g += data[i+1];
+                            b += data[i+2];
+                            count++;
+                        }
+                        
+                        r = Math.floor(r / count);
+                        g = Math.floor(g / count);
+                        b = Math.floor(b / count);
+                        
+                        resolve(classifyColor(r, g, b));
+                    } catch (e) {
+                        reject(e); 
+                    }
+                };
+                
+                img.onerror = reject;
+            });
+        }
+
+        function classifyColor(r, g, b) {
+            r /= 255, g /= 255, b /= 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+
+            if (max === min) {
+                h = s = 0; 
+            } else {
+                const d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+            
+            h = Math.round(h * 360);
+            s = Math.round(s * 100);
+            l = Math.round(l * 100);
+
+            if (l < 20) return 'black';
+            if (l > 90 && s < 20) return 'white';
+            if (s < 15) return 'black'; 
+
+            if (h >= 0 && h <= 15) return 'red';
+            if (h > 15 && h <= 45) return 'orange';
+            if (h > 45 && h <= 70) return 'yellow';
+            if (h > 70 && h <= 150) return 'green';
+            if (h > 150 && h <= 260) return 'blue';
+            if (h > 260 && h <= 300) return 'purple';
+            if (h > 300 && h <= 340) return 'pink';
+            if (h > 340) return 'red'; 
+
+            return 'white'; 
+        }
+
+        // --- FIND SIMILAR ---
+        async function findSimilar() {
+            const btn = document.querySelector('#lb-tools-panel button:first-child i');
+            if(btn) btn.className = 'fa-solid fa-spinner fa-spin'; 
+
+            const currentFile = currentGallery[currentPhotoIndex];
+            const src = `${PATH_TO_IMAGES}${currentFile}`;
+
+            try {
+                let color = colorCache[currentFile];
+                if (!color) {
+                    color = await analyzeImageColor(src);
+                    colorCache[currentFile] = color;
+                }
+
+                closeLightbox();
+                setTimeout(() => filterByColor(color), 300);
+
+            } catch(e) {
+                showError("Could not analyze this image.");
+            } finally {
+                if(btn) btn.className = 'fa-solid fa-wand-magic-sparkles text-sm'; 
+            }
+        }
+
+        // --- STORIES LOGIC ---
+        function openStory(name) {
+            const data = peopleData[name];
+            if(!data) return;
+            
+            let photos = [...data.photos];
+            photos = photos.filter(p => isPhotoVisible(p)); 
+            photos.sort((a, b) => extractDate(b) - extractDate(a));
+            const storyPhotos = photos.slice(0, 5);
+            
+            if(storyPhotos.length === 0) {
+                showGallery(name);
+                return;
+            }
+
+            storyData = {
+                person: name,
+                photos: storyPhotos,
+                avatar: getThumbUrl(name)
+            };
+            currentStoryIndex = 0;
+            
+            document.getElementById('story-user').innerText = name;
+            document.getElementById('story-avatar').src = storyData.avatar;
+            document.getElementById('story-overlay').classList.remove('hidden');
+            renderStorySlide();
+        }
+
+        function renderStorySlide() {
+            const photo = storyData.photos[currentStoryIndex];
+            const img = document.getElementById('story-image');
+            const barsContainer = document.getElementById('story-bars');
+            img.src = `${PATH_TO_IMAGES}${photo}`;
+            const date = extractDate(photo);
+            const timeEl = document.getElementById('story-time');
+            if(date.getTime() > 0) {
+                const now = new Date();
+                const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+                timeEl.innerText = diffDays === 0 ? 'Today' : `${diffDays}d`;
+            } else {
+                timeEl.innerText = '';
+            }
+            barsContainer.innerHTML = '';
+            storyData.photos.forEach((_, idx) => {
+                const barWrap = document.createElement('div');
+                barWrap.className = "h-1 bg-white/30 rounded-full flex-1 overflow-hidden";
+                const fill = document.createElement('div');
+                fill.className = "h-full bg-white w-0";
+                if (idx < currentStoryIndex) {
+                    fill.style.width = '100%';
+                } else if (idx === currentStoryIndex) {
+                    barWrap.classList.add('story-progress-bar', 'active');
+                    fill.className = "h-full bg-white fill";
+                }
+                barWrap.appendChild(fill);
+                barsContainer.appendChild(barWrap);
+            });
+            if(storyTimer) clearTimeout(storyTimer);
+            storyTimer = setTimeout(() => {
+                nextStorySlide();
+            }, 3500);
+        }
+
+        function nextStorySlide() {
+            if(currentStoryIndex < storyData.photos.length - 1) {
+                currentStoryIndex++;
+                renderStorySlide();
+            } else {
+                closeStory();
+            }
+        }
+
+        function prevStorySlide() {
+            if(currentStoryIndex > 0) {
+                currentStoryIndex--;
+                renderStorySlide();
+            }
+        }
+
+        function closeStory() {
+            if(storyTimer) clearTimeout(storyTimer);
+            document.getElementById('story-overlay').classList.add('hidden');
+            storyData = {};
+        }
+
+        // --- MEMORIES LOGIC ---
+        function renderMemories() {
+            const container = document.getElementById('memories-container');
+            const today = new Date();
+            const tMonth = today.getMonth();
+            const tDay = today.getDate();
+            
+            const visible = getVisiblePhotos();
+            let match = null;
+            let title = "Rediscover<br>Memories";
+            let dateText = "Featured Photo";
+            let tagText = "Highlights";
+
+            const exactMatches = visible.filter(f => {
+                const d = extractDate(f);
+                return d.getTime() > 0 && d.getMonth() === tMonth && d.getDate() === tDay && d.getFullYear() < today.getFullYear();
+            });
+
+            const todayMatches = visible.filter(f => {
+                const d = extractDate(f);
+                return d.getTime() > 0 && d.getMonth() === tMonth && d.getDate() === tDay;
+            });
+
+            const weekMatches = visible.filter(f => {
+                const d = extractDate(f);
+                if (d.getTime() === 0 || d.getFullYear() >= today.getFullYear()) return false;
+                const diffTime = Math.abs(today.getTime() - new Date(today.getFullYear(), d.getMonth(), d.getDate()).getTime());
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                return diffDays <= 3;
+            });
+
+            if (exactMatches.length > 0) {
+                match = exactMatches[Math.floor(Math.random() * exactMatches.length)];
+                const d = extractDate(match);
+                const years = today.getFullYear() - d.getFullYear();
+                tagText = "On This Day";
+                title = "Time Flies";
+                dateText = `${years} Year${years > 1 ? 's' : ''} Ago`;
+            } else if (todayMatches.length > 0) {
+                match = todayMatches[Math.floor(Math.random() * todayMatches.length)];
+                tagText = "Recent";
+                title = "Snapped<br>Today";
+                dateText = "Just Now";
+            } else if (weekMatches.length > 0) {
+                match = weekMatches[Math.floor(Math.random() * weekMatches.length)];
+                const d = extractDate(match);
+                const years = today.getFullYear() - d.getFullYear();
+                tagText = "This Week";
+                title = "Weekly<br>Throwback";
+                dateText = `${years} Year${years > 1 ? 's' : ''} Ago`;
+            } else {
+                if(visible.length > 0) {
+                    match = visible[Math.floor(Math.random() * visible.length)];
+                    tagText = "Featured";
+                    title = "Moment<br>Spotlight";
+                    const d = extractDate(match);
+                    dateText = d.getTime() > 0 ? d.toLocaleDateString() : "Timeless";
+                }
+            }
+
+            if (match) {
+                activeMemoryFile = match;
+                document.getElementById('memory-bg').src = `${PATH_TO_IMAGES}${match}`;
+                document.getElementById('memory-img').src = `${PATH_TO_IMAGES}${match}`;
+                document.getElementById('memory-title').innerHTML = title;
+                document.getElementById('memory-date').innerText = dateText;
+                document.getElementById('memory-tag').innerText = tagText;
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        function openMemory() {
+            if(!activeMemoryFile) return;
+            currentGallery = getVisiblePhotos();
+            const idx = currentGallery.indexOf(activeMemoryFile);
+            if(idx !== -1) openLightbox(idx);
+        }
+
+        // --- FEATURES ---
+        function loadFavorites() {
+            const stored = localStorage.getItem('sg_favorites');
+            if (stored) favorites = new Set(JSON.parse(stored));
+        }
+        function saveFavorites() {
+            localStorage.setItem('sg_favorites', JSON.stringify([...favorites]));
+        }
+        function toggleFavoriteCurrent() {
+            const filename = currentGallery[currentPhotoIndex];
+            const icon = document.querySelector('#lb-fav-btn i');
+            if (favorites.has(filename)) {
+                favorites.delete(filename);
+                icon.classList.remove('fa-solid', 'text-red-500');
+                icon.classList.add('fa-regular');
+            } else {
+                favorites.add(filename);
+                icon.classList.remove('fa-regular');
+                icon.classList.add('fa-solid', 'text-red-500', 'animate-heart');
+                setTimeout(() => icon.classList.remove('animate-heart'), 300);
+            }
+            saveFavorites();
+        }
+
+        function downloadCurrentImage() {
+            const filename = currentGallery[currentPhotoIndex];
+            const src = `${PATH_TO_IMAGES}${filename}`;
+            const link = document.createElement('a');
+            link.href = src;
+            link.download = filename;
+            link.target = "_blank"; 
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function toggleSlideshow() {
+            const btn = document.querySelector('#lb-play-btn i');
+            const bar = document.getElementById('slideshow-progress');
+            if (slideshowInterval) {
+                clearInterval(slideshowInterval);
+                slideshowInterval = null;
+                btn.classList.remove('fa-pause');
+                btn.classList.add('fa-play');
+                bar.classList.remove('animate-progress');
+                bar.style.width = '0';
+            } else {
+                btn.classList.remove('fa-play');
+                btn.classList.add('fa-pause');
+                nextImage(); 
+                bar.classList.add('animate-progress');
+                slideshowInterval = setInterval(() => {
+                    bar.classList.remove('animate-progress');
+                    void bar.offsetWidth;
+                    bar.classList.add('animate-progress');
+                    nextImage();
+                }, 3000);
+            }
+        }
+
+        // --- LB TOOLS LOGIC (NEW) ---
+        function toggleLbTools() {
+            isLbToolsOpen = !isLbToolsOpen;
+            const panel = document.getElementById('lb-tools-panel');
+            const toggleBtn = document.getElementById('lb-tools-toggle');
+            const icon = toggleBtn.querySelector('i');
+            
+            if(isLbToolsOpen) {
+                panel.classList.remove('w-0', 'opacity-0');
+                panel.classList.add('w-auto', 'opacity-100');
+                toggleBtn.classList.add('bg-white/30');
+                icon.classList.remove('fa-ellipsis');
+                icon.classList.add('fa-chevron-right');
+            } else {
+                panel.classList.add('w-0', 'opacity-0');
+                panel.classList.remove('w-auto', 'opacity-100');
+                toggleBtn.classList.remove('bg-white/30');
+                icon.classList.add('fa-ellipsis');
+                icon.classList.remove('fa-chevron-right');
+            }
+        }
+
+        // --- VIEW SETTINGS ---
+        function loadViewSettings() {
+            const stored = localStorage.getItem('sg_view_settings');
+            if(stored) {
+                viewSettings = JSON.parse(stored);
+                if(!viewSettings.type) viewSettings.type = 'masonry';
+                if(!viewSettings.size) viewSettings.size = 'medium';
+            }
+            updateViewSettingsUI();
+        }
+        function saveViewSettings() {
+            localStorage.setItem('sg_view_settings', JSON.stringify(viewSettings));
+            updateViewSettingsUI();
+            if(activeView === 'gallery') renderActiveGalleryContent();
+        }
+        
+        function toggleViewSettings() {
+            const dropdown = document.getElementById('view-settings-dropdown');
+            dropdown.classList.toggle('hidden');
+        }
+
+        function setGridType(type) {
+            viewSettings.type = type;
+            saveViewSettings();
+        }
+
+        function setGridSize(size) {
+            viewSettings.size = size;
+            saveViewSettings();
+        }
+
+        function toggleInfoVisibility() {
+            viewSettings.showInfo = !viewSettings.showInfo;
+            saveViewSettings();
+        }
+
+        function updateViewSettingsUI() {
+            ['masonry', 'square'].forEach(t => {
+                const btn = document.getElementById(`btn-${t}`);
+                if(viewSettings.type === t) {
+                    btn.classList.add('bg-white', 'text-blue-600', 'shadow-sm', 'dark:bg-slate-700', 'dark:text-blue-400');
+                    btn.classList.remove('text-slate-500');
+                } else {
+                    btn.classList.remove('bg-white', 'text-blue-600', 'shadow-sm', 'dark:bg-slate-700', 'dark:text-blue-400');
+                    btn.classList.add('text-slate-500');
+                }
+            });
+
+            ['s', 'm', 'l'].forEach(s => {
+                const sizeName = s === 's' ? 'small' : s === 'm' ? 'medium' : 'large';
+                const btn = document.getElementById(`btn-size-${s}`);
+                if(viewSettings.size === sizeName) {
+                    btn.classList.add('bg-white', 'text-blue-600', 'shadow-sm', 'dark:bg-slate-700', 'dark:text-blue-400');
+                    btn.classList.remove('text-slate-500', 'hover:bg-white', 'dark:hover:bg-slate-700');
+                } else {
+                    btn.classList.remove('bg-white', 'text-blue-600', 'shadow-sm', 'dark:bg-slate-700', 'dark:text-blue-400');
+                    btn.classList.add('text-slate-500', 'hover:bg-white', 'dark:hover:bg-slate-700');
+                }
+            });
+
+            const dot = document.getElementById('info-toggle-dot');
+            const bg = document.getElementById('info-toggle-bg');
+            if(viewSettings.showInfo) {
+                dot.style.transform = 'translateX(100%)';
+                bg.classList.add('bg-blue-500');
+                bg.classList.remove('bg-slate-200', 'dark:bg-slate-700');
+            } else {
+                dot.style.transform = 'translateX(0)';
+                bg.classList.remove('bg-blue-500');
+                bg.classList.add('bg-slate-200', 'dark:bg-slate-700');
+            }
+        }
+
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('view-settings-dropdown');
+            const btn = document.getElementById('settings-btn');
+            if(!dropdown.classList.contains('hidden') && !dropdown.contains(e.target) && !btn.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        // --- ZOOM LOGIC ---
+        function setupZoom() {
+            const img = document.getElementById('lightbox-img');
+            let startDist = 0;
+            let startCenter = { x: 0, y: 0 };
+            let isZooming = false;
+
+            img.addEventListener('touchstart', (e) => {
+                if (isEditing) return; 
+                if (e.touches.length === 2) {
+                    e.preventDefault(); 
+                    isZooming = true;
+                    
+                    document.getElementById('lb-toolbar').classList.add('opacity-0');
+                    document.getElementById('lb-caption-container').classList.add('opacity-0');
+                    document.getElementById('lb-prev').classList.add('opacity-0');
+                    document.getElementById('lb-next').classList.add('opacity-0');
+
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    startDist = Math.hypot(dx, dy);
+
+                    const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    startCenter = { x: cx, y: cy };
+
+                    const rect = img.getBoundingClientRect();
+                    const originX = cx - rect.left;
+                    const originY = cy - rect.top;
+                    
+                    img.style.transition = 'none';
+                    img.style.transformOrigin = `${originX}px ${originY}px`;
+                }
+            });
+
+            img.addEventListener('touchmove', (e) => {
+                if (!isZooming || e.touches.length !== 2) return;
+                e.preventDefault();
+
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const newDist = Math.hypot(dx, dy);
+                const scale = Math.max(1, newDist / startDist); 
+
+                const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                const tx = cx - startCenter.x;
+                const ty = cy - startCenter.y;
+
+                img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+            });
+
+            img.addEventListener('touchend', (e) => {
+                if (isZooming && e.touches.length < 2) {
+                    isZooming = false;
+                    
+                    document.getElementById('lb-toolbar').classList.remove('opacity-0');
+                    document.getElementById('lb-caption-container').classList.remove('opacity-0');
+                    document.getElementById('lb-prev').classList.remove('opacity-0');
+                    document.getElementById('lb-next').classList.remove('opacity-0');
+
+                    img.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0.2, 1)';
+                    img.style.transform = '';
+                    
+                    setTimeout(() => {
+                        if(!isZooming) img.style.transformOrigin = 'center';
+                    }, 300);
+                }
+            });
+        }
+
+        // --- EDITOR LOGIC ---
+        function openEditor() {
+            if(slideshowInterval) toggleSlideshow();
+            isEditing = true;
+            editState = { brightness: 100, contrast: 100, rotate: 0, flipH: 1, filter: 'none' };
+            applyVisualEdits();
+            
+            document.getElementById('lb-toolbar').classList.add('-translate-y-full');
+            document.getElementById('lb-caption-container').classList.add('opacity-0');
+            document.getElementById('lb-prev').classList.add('hidden');
+            document.getElementById('lb-next').classList.add('hidden');
+            
+            const editor = document.getElementById('editor-ui');
+            editor.classList.remove('hidden');
+            setTimeout(() => editor.classList.remove('translate-y-full'), 10);
+            
+            document.querySelector('input[type=range][min="0"]').value = 100;
+            document.querySelectorAll('input[type=range]')[1].value = 100;
+            document.getElementById('val-bright').innerText = '100%';
+            document.getElementById('val-contrast').innerText = '100%';
+            updateFilterButtons();
+        }
+
+        function closeEditor() {
+            isEditing = false;
+            document.getElementById('lb-toolbar').classList.remove('-translate-y-full');
+            document.getElementById('lb-caption-container').classList.remove('opacity-0');
+            document.getElementById('lb-prev').classList.remove('hidden');
+            document.getElementById('lb-next').classList.remove('hidden');
+
+            const editor = document.getElementById('editor-ui');
+            editor.classList.add('translate-y-full');
+            setTimeout(() => editor.classList.add('hidden'), 300);
+
+            editState = { brightness: 100, contrast: 100, rotate: 0, flipH: 1, filter: 'none' };
+            applyVisualEdits();
+        }
+
+        function updateEditState(key, value) {
+            if (key === 'rotate') {
+                editState.rotate = (editState.rotate + 90) % 360;
+            } else if (key === 'flipH') {
+                editState.flipH = editState.flipH * -1;
+            } else {
+                editState[key] = value;
+            }
+            if(key === 'brightness') document.getElementById('val-bright').innerText = value + '%';
+            if(key === 'contrast') document.getElementById('val-contrast').innerText = value + '%';
+            applyVisualEdits();
+        }
+
+        function setFilter(name) {
+            editState.filter = name;
+            updateFilterButtons();
+            applyVisualEdits();
+        }
+
+        function updateFilterButtons() {
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if (btn.dataset.filter === editState.filter) {
+                    btn.classList.add('bg-blue-600', 'text-white', 'border-blue-500', 'font-bold');
+                    btn.classList.remove('bg-white/5', 'text-slate-300', 'border-white/10');
+                } else {
+                    btn.classList.remove('bg-blue-600', 'text-white', 'border-blue-500', 'font-bold');
+                    btn.classList.add('bg-white/5', 'text-slate-300', 'border-white/10');
+                }
+            });
+        }
+
+        function applyVisualEdits() {
+            const img = document.getElementById('lightbox-img');
+            let filterStr = `brightness(${editState.brightness}%) contrast(${editState.contrast}%)`;
+            if (editState.filter === 'grayscale') filterStr += ' grayscale(100%)';
+            if (editState.filter === 'sepia') filterStr += ' sepia(100%)';
+            const transformStr = `rotate(${editState.rotate}deg) scaleX(${editState.flipH})`;
+            img.style.filter = filterStr;
+            img.style.transform = transformStr;
+        }
+
+        function showError(msg) {
+            const toast = document.getElementById('error-toast');
+            document.getElementById('error-msg').innerText = msg;
+            toast.classList.remove('-translate-y-24', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('-translate-y-24', 'opacity-0');
+            }, 5000);
+        }
+
+        function saveEdit() {
+            const img = document.getElementById('lightbox-img');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (editState.rotate % 180 !== 0) {
+                canvas.width = img.naturalHeight;
+                canvas.height = img.naturalWidth;
+            } else {
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+            }
+
+            let filterStr = `brightness(${editState.brightness}%) contrast(${editState.contrast}%)`;
+            if (editState.filter === 'grayscale') filterStr += ' grayscale(100%)';
+            if (editState.filter === 'sepia') filterStr += ' sepia(100%)';
+            ctx.filter = filterStr;
+
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(editState.rotate * Math.PI / 180);
+            ctx.scale(editState.flipH, 1);
+            if (editState.rotate % 180 !== 0) {
+                ctx.drawImage(img, -img.naturalHeight / 2, -img.naturalWidth / 2);
+            } else {
+                ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+            }
+
+            try {
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                const link = document.createElement('a');
+                link.download = 'edited_' + currentGallery[currentPhotoIndex];
+                link.href = dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                const saveBtn = document.querySelector('#editor-ui button[onclick="saveEdit()"]');
+                const originalText = saveBtn.innerText;
+                saveBtn.innerText = "Saved!";
+                saveBtn.classList.add('bg-green-600');
+                setTimeout(() => {
+                    saveBtn.innerText = originalText;
+                    saveBtn.classList.remove('bg-green-600');
+                    closeEditor();
+                }, 1000);
+            } catch (e) {
+                console.error(e);
+                showError("Cannot save: Browser security blocks editing this file.");
+            }
+        }
+
+        // --- STATS ---
+        function loadUserStats() {
+            const stored = localStorage.getItem('sg_user_stats');
+            if (stored) userStats = JSON.parse(stored);
+            if (!userStats.albumViews) userStats.albumViews = {};
+            if (!userStats.totalVisits) userStats.totalVisits = 0;
+        }
+        function saveUserStats() {
+            localStorage.setItem('sg_user_stats', JSON.stringify(userStats));
+        }
+        function trackAlbumView(name) {
+            if(name === 'Favorites' || name === 'All Photos' || HIDDEN_ALBUMS.includes(name)) return;
+            if (!userStats.albumViews[name]) userStats.albumViews[name] = 0;
+            userStats.albumViews[name]++;
+            saveUserStats();
+        }
+
+        function openStats() {
+            document.getElementById('people-view').classList.add('hidden');
+            document.getElementById('gallery-view').classList.add('hidden');
+            const statsView = document.getElementById('stats-view');
+            statsView.classList.remove('hidden');
+            statsView.classList.remove('animate-enter');
+            void statsView.offsetWidth; 
+            statsView.classList.add('animate-enter');
+
+            const visiblePeople = Object.entries(peopleData).filter(([name]) => !HIDDEN_ALBUMS.includes(name) || unlockedSecrets.includes(name));
+            const sortedPeople = visiblePeople.sort((a, b) => b[1].count - a[1].count);
+            
+            const visibleTotal = sortedPeople.reduce((acc, curr) => acc + curr[1].count, 0);
+            document.getElementById('pie-total-count').innerText = visibleTotal;
+
+            const baseColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#e11d48', '#a855f7'];
+            let conicGradient = [];
+            let currentDeg = 0;
+            let legendHTML = '';
+            
+            sortedPeople.forEach((p, i) => {
+                const name = p[0];
+                const count = p[1].count;
+                const color = baseColors[i % baseColors.length];
+                const deg = (count / visibleTotal) * 360;
+                conicGradient.push(`${color} ${currentDeg}deg ${currentDeg + deg}deg`);
+                currentDeg += deg;
+
+                legendHTML += `
+                    <div class="flex items-center justify-between text-sm p-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition cursor-default">
+                        <div class="flex items-center gap-3">
+                            <div class="relative w-8 h-8">
+                                <img src="${getThumbUrl(name)}" onerror="this.src='https://ui-avatars.com/api/?name=${name}'" class="w-8 h-8 rounded-full object-cover ring-2 ring-white dark:ring-slate-700 shadow-sm">
+                                <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-slate-800" style="background-color: ${color}"></span>
+                            </div>
+                            <span class="text-slate-700 dark:text-slate-200 font-medium">${name}</span>
+                        </div>
+                        <span class="text-slate-400 text-xs font-mono">${count}</span>
+                    </div>
+                `;
+            });
+            document.getElementById('pie-chart-container').style.background = `conic-gradient(${conicGradient.join(', ')})`;
+            document.getElementById('pie-legend').innerHTML = legendHTML;
+
+            document.getElementById('total-app-visits').innerText = userStats.totalVisits;
+            
+            const visibleVisits = Object.entries(userStats.albumViews).filter(([name]) => !HIDDEN_ALBUMS.includes(name) || unlockedSecrets.includes(name));
+            const sortedVisits = visibleVisits.sort((a, b) => b[1] - a[1]);
+            
+            const visitBars = document.getElementById('visit-bars');
+            visitBars.innerHTML = '';
+
+            if (sortedVisits.length === 0) {
+                visitBars.innerHTML = '<p class="text-sm text-slate-400 italic">No albums visited yet.</p>';
+            } else {
+                const maxVisits = sortedVisits[0][1];
+                sortedVisits.forEach(([name, count]) => {
+                    const percent = (count / maxVisits) * 100;
+                    visitBars.innerHTML += `
+                        <div class="flex items-center gap-3 p-1">
+                            <img src="${getThumbUrl(name)}" onerror="this.src='https://ui-avatars.com/api/?name=${name}'" class="w-8 h-8 rounded-full object-cover shadow-sm ring-1 ring-slate-100 dark:ring-slate-700 flex-shrink-0">
+                            <div class="flex-grow">
+                                <div class="flex justify-between text-xs font-bold mb-1">
+                                    <span class="text-slate-700 dark:text-slate-200">${name}</span>
+                                    <span class="text-blue-500">${count} views</span>
+                                </div>
+                                <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                                    <div class="bg-blue-500 h-2 rounded-full transition-all duration-1000" style="width: ${percent}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+        }
+
+        function closeStats() {
+            document.getElementById('stats-view').classList.add('hidden');
+            document.getElementById('people-view').classList.remove('hidden');
+            document.getElementById('searchInput').value = '';
+            renderThumbnails(); 
+        }
+
+        // ==================== RENDER & INTERACTION ====================
+        function handleSearch(e) {
+            const query = e.target.value.toLowerCase().trim();
+            const queryHash = simpleHash(query);
+
+            if (queryHash === SECRET_HASH) {
+                unlockedSecrets = [...HIDDEN_ALBUMS]; 
+                document.getElementById('searchInput').value = '';
+                
+                const toast = document.getElementById('secret-toast');
+                toast.classList.remove('opacity-0', 'translate-y-24');
+                toast.classList.add('toast-visible');
+                
+                if(toastTimeout) clearTimeout(toastTimeout);
+                toastTimeout = setTimeout(() => dismissToast(), 5000); 
+                
+                renderThumbnails();
+                updateGlobalCount();
+                return;
+            }
+            
+            if (query === 'lock') {
+                lockGallery();
+                return;
+            }
+
+            if (!document.getElementById('stats-view').classList.contains('hidden')) return;
+            if (!document.getElementById('people-view').classList.contains('hidden')) renderThumbnails(query);
+            else if (!document.getElementById('gallery-view').classList.contains('hidden') && activePerson) showGallery(activePerson, query);
+        }
+
+        function dismissToast() {
+            const toast = document.getElementById('secret-toast');
+            toast.classList.add('opacity-0', 'translate-y-24');
+            toast.classList.remove('toast-visible');
+        }
+
+        function lockGallery() {
+            unlockedSecrets = []; 
+            document.getElementById('searchInput').value = '';
+            dismissToast();
+            updateGlobalCount();
+            
+            if (activeView === 'gallery') {
+                if(activePerson === 'All Photos' || activePerson === 'Favorites') {
+                    showGallery(activePerson); 
+                } else if (HIDDEN_ALBUMS.includes(activePerson)) {
+                    goBack(); 
+                }
+            }
+            renderThumbnails();
+        }
+
+        function lockAlbum(name) {
+            unlockedSecrets = unlockedSecrets.filter(n => n !== name);
+            updateGlobalCount();
+            
+            if (unlockedSecrets.length === 0) dismissToast();
+            renderThumbnails();
+        }
+
+        function renderThumbnails(filter = "") {
+            const grid = document.getElementById('people-grid');
+            grid.innerHTML = '';
+            
+            const visiblePhotos = getVisiblePhotos();
+
+            // All Photos
+            if (!filter || "all photos".includes(filter)) {
+                const totalCount = visiblePhotos.length;
+                const card = document.createElement('div');
+                card.className = "group relative overflow-hidden rounded-2xl aspect-[4/5] cursor-pointer shadow-md hover:shadow-xl transition-all duration-500 hover:-translate-y-1 bg-gradient-to-br from-blue-500 to-cyan-500";
+                card.onclick = () => showGallery('All Photos');
+                card.innerHTML = `
+                    <div class="absolute inset-0 flex items-center justify-center text-white/90 group-hover:scale-110 transition-transform duration-700"><i class="fa-solid fa-layer-group text-6xl drop-shadow-lg"></i></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                    <div class="absolute bottom-0 left-0 p-4 w-full">
+                        <h3 class="text-white text-lg font-bold tracking-wide">All Photos</h3>
+                        <p class="text-white/80 text-xs font-medium">${totalCount} Photos</p>
+                    </div>
+                `;
+                grid.appendChild(card);
+            }
+
+            // Favorites
+            if (!filter || "favorites".includes(filter)) {
+                const visibleFavs = visiblePhotos.filter(f => favorites.has(f)).length;
+                const card = document.createElement('div');
+                card.className = "group relative overflow-hidden rounded-2xl aspect-[4/5] cursor-pointer shadow-md hover:shadow-xl transition-all duration-500 hover:-translate-y-1 bg-gradient-to-br from-pink-500 to-rose-600";
+                card.onclick = () => showGallery('Favorites');
+                card.innerHTML = `
+                    <div class="absolute inset-0 flex items-center justify-center text-white/90 group-hover:scale-110 transition-transform duration-700"><i class="fa-solid fa-heart text-6xl drop-shadow-lg"></i></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                    <div class="absolute bottom-0 left-0 p-4 w-full">
+                        <h3 class="text-white text-lg font-bold tracking-wide">Favorites</h3>
+                        <p class="text-white/80 text-xs font-medium">${visibleFavs} Photos</p>
+                    </div>
+                `;
+                grid.appendChild(card);
+            }
+
+            const sortedNames = Object.keys(peopleData).sort();
+            let hasResults = false;
+
+            sortedNames.forEach(name => {
+                const isHidden = HIDDEN_ALBUMS.includes(name);
+                const isUnlocked = unlockedSecrets.includes(name);
+                
+                if (isHidden && !isUnlocked) return; 
+
+                if (filter && !name.toLowerCase().includes(filter)) return;
+                hasResults = true;
+
+                const data = peopleData[name];
+                const thumbUrl = getThumbUrl(name);
+                
+                const card = document.createElement('div');
+                card.className = "group relative overflow-hidden rounded-2xl aspect-[4/5] cursor-pointer shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-1 bg-slate-200 dark:bg-slate-800";
+                card.onclick = () => showGallery(name);
+
+                // Granular Lock Button
+                let badgeHTML = '';
+                if (isHidden && isUnlocked) {
+                    badgeHTML = `<button onclick="lockAlbum('${name}'); event.stopPropagation();" class="absolute top-2 right-2 bg-black/50 backdrop-blur-sm text-white text-xs w-8 h-8 flex items-center justify-center rounded-full z-20 hover:bg-red-500 transition-colors shadow-md group/lock"><i class="fa-solid fa-lock-open group-hover/lock:hidden"></i><i class="fa-solid fa-lock hidden group-hover/lock:block"></i></button>`;
+                }
+
+                const img = document.createElement('img');
+                img.src = thumbUrl;
+                img.loading = "lazy"; 
+                img.className = "absolute inset-0 w-full h-full object-cover transition duration-700 group-hover:scale-110 img-loading";
+                img.onload = function() { this.classList.remove('img-loading'); this.classList.add('img-loaded'); };
+                
+                // Robust Fallback
+                img.onerror = function() { 
+                    if(HIDDEN_ALBUMS.includes(name)) {
+                        this.style.display = 'none'; 
+                        const iconDiv = document.createElement('div');
+                        iconDiv.className = "absolute inset-0 flex items-center justify-center bg-slate-800 text-slate-600";
+                        iconDiv.innerHTML = '<i class="fa-solid fa-user-secret text-5xl"></i>';
+                        card.appendChild(iconDiv);
+                    } else {
+                        this.src = `https://ui-avatars.com/api/?name=${name}&background=random`; 
+                    }
+                };
+
+                const overlay = document.createElement('div');
+                overlay.className = "absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity";
+
+                const info = document.createElement('div');
+                info.className = "absolute bottom-0 left-0 p-4 w-full translate-y-1 group-hover:translate-y-0 transition-transform duration-300 flex items-center gap-3";
+                info.innerHTML = `
+                    <div onclick="openStory('${name}'); event.stopPropagation();" class="w-10 h-10 flex-shrink-0 rounded-full p-[2px] bg-gradient-to-tr from-yellow-400 via-red-500 to-fuchsia-600 cursor-pointer hover:scale-110 transition-transform shadow-md z-20" title="View Story">
+                        <img src="${thumbUrl}" onerror="this.src='https://ui-avatars.com/api/?name=${name}'" class="w-full h-full rounded-full object-cover border-2 border-white dark:border-slate-900">
+                    </div>
+                    <div>
+                        <h3 class="text-white text-lg font-bold tracking-wide truncate leading-tight">${name}</h3>
+                        <span class="inline-block px-2 py-0.5 bg-white/20 backdrop-blur-sm rounded-full text-[9px] font-medium text-white border border-white/10">${data.count} Photos</span>
+                    </div>
+                `;
+
+                if(badgeHTML) card.innerHTML += badgeHTML;
+                card.appendChild(img);
+                card.appendChild(overlay);
+                card.appendChild(info);
+                grid.appendChild(card);
+            });
+            
+            const hasSpecial = !filter || "favorites".includes(filter) || "all photos".includes(filter);
+            document.getElementById('no-albums').classList.toggle('hidden', hasResults || hasSpecial);
+        }
+
+        function toggleGalleryView() {
+            viewMode = viewMode === 'grid' ? 'timeline' : 'grid';
+            const btn = document.querySelector('#view-toggle-btn i');
+            if (viewMode === 'timeline') {
+                btn.classList.remove('fa-calendar-days');
+                btn.classList.add('fa-grip-vertical');
+            } else {
+                btn.classList.remove('fa-grip-vertical');
+                btn.classList.add('fa-calendar-days');
+            }
+            renderActiveGalleryContent();
+        }
+
+        function renderActiveGalleryContent() {
+            const container = document.getElementById('photo-container');
+            container.innerHTML = '';
+            
+            if (currentGallery.length === 0) {
+                document.getElementById('empty-state').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('empty-state').classList.add('hidden');
+
+            let gridClass = '';
+            let squareGridClass = '';
+            
+            if (viewSettings.size === 'small') {
+                gridClass = 'columns-2 sm:columns-4 lg:columns-6 gap-4'; 
+                squareGridClass = 'grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 gap-1'; 
+            } else if (viewSettings.size === 'large') {
+                gridClass = 'columns-1 sm:columns-2 lg:columns-3 gap-6'; 
+                squareGridClass = 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4'; 
+            } else {
+                gridClass = 'columns-2 sm:columns-3 lg:columns-4 gap-4'; 
+                squareGridClass = 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-1'; 
+            }
+
+            if (viewMode === 'grid') {
+                const grid = document.createElement('div');
+                
+                if (viewSettings.type === 'square') {
+                    grid.className = `grid ${squareGridClass}`;
+                } else {
+                    grid.className = gridClass; 
+                }
+
+                currentGallery.forEach((filename, index) => {
+                    grid.appendChild(createPhotoCard(filename, index, viewSettings.type === 'square'));
+                });
+                container.appendChild(grid);
+
+            } else {
+                const sortedWithDate = currentGallery.map(f => ({ name: f, date: extractDate(f) })).sort((a, b) => b.date - a.date);
+                let lastHeader = "";
+                let currentGrid = null;
+
+                sortedWithDate.forEach((item) => {
+                    const dateStr = item.date.getTime() === 0 ? "Unknown Date" : item.date.toLocaleString('default', { month: 'long', year: 'numeric' });
+                    if (dateStr !== lastHeader) {
+                        if (currentGrid) container.appendChild(currentGrid);
+                        const header = document.createElement('div');
+                        header.className = "sticky top-28 z-20 bg-slate-50/90 dark:bg-slate-950/90 backdrop-blur-sm py-2 px-1 mb-4 mt-8 text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800";
+                        header.innerText = dateStr;
+                        container.appendChild(header);
+                        currentGrid = document.createElement('div');
+                        currentGrid.className = `grid ${squareGridClass} mb-8`;
+                        lastHeader = dateStr;
+                    }
+                    const originalIndex = currentGallery.indexOf(item.name);
+                    currentGrid.appendChild(createPhotoCard(item.name, originalIndex, true)); 
+                });
+                if (currentGrid) container.appendChild(currentGrid);
+            }
+        }
+
+        function createPhotoCard(filename, index, isSquare = false) {
+            const wrapper = document.createElement('div');
+            const mb = isSquare ? '' : 'mb-4';
+            
+            // Base class logic
+            let className = isSquare 
+                ? `group relative aspect-square overflow-hidden cursor-zoom-in bg-slate-200 dark:bg-slate-800 ${mb} photo-card`
+                : `masonry-item break-inside-avoid group relative rounded-xl overflow-hidden cursor-zoom-in bg-slate-200 dark:bg-slate-800 shadow-sm hover:shadow-md transition-all ${mb} photo-card`;
+            
+            if (isSelecting) className += ' selecting';
+            if (selectedPhotos.has(filename)) className += ' selected';
+
+            wrapper.className = className;
+            
+            // Handle Click: Select or Lightbox
+            wrapper.onclick = (e) => {
+                if (isSelecting) {
+                    e.stopPropagation();
+                    togglePhotoSelection(filename);
+                } else {
+                    openLightbox(index);
+                }
+            };
+
+            if (filename.toLowerCase().endsWith('.mp4')) {
+                const video = document.createElement('video');
+                video.src = `${PATH_TO_IMAGES}${filename}`;
+                video.className = "w-full h-full object-cover pointer-events-none";
+                wrapper.appendChild(video);
+                const icon = document.createElement('div');
+                icon.className = "absolute top-2 right-2 bg-black/50 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs backdrop-blur-sm";
+                icon.innerHTML = '<i class="fa-solid fa-play"></i>';
+                wrapper.appendChild(icon);
+            } else {
+                const img = document.createElement('img');
+                img.src = `${PATH_TO_IMAGES}${filename}`;
+                img.loading = "lazy"; 
+                img.className = "w-full h-full object-cover transition duration-700 group-hover:scale-110 img-loading";
+                img.onload = function() { this.classList.remove('img-loading'); this.classList.add('img-loaded'); };
+                wrapper.appendChild(img);
+            }
+
+            // Selection Overlay
+            const selectOverlay = document.createElement('div');
+            selectOverlay.className = "photo-select-overlay absolute inset-0 flex items-center justify-center z-20 pointer-events-none";
+            selectOverlay.innerHTML = `<div class="check-circle"><i class="fa-solid fa-check"></i></div>`;
+            wrapper.appendChild(selectOverlay);
+
+            if (viewSettings.showInfo) {
+                const info = document.createElement('div');
+                info.className = "absolute bottom-0 left-0 w-full p-2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none";
+                const date = extractDate(filename);
+                const dateStr = date.getTime() !== 0 ? date.toLocaleDateString() : '';
+                info.innerHTML = `
+                    <p class="text-white text-[10px] font-mono truncate opacity-90">${filename}</p>
+                    ${dateStr ? `<p class="text-white/60 text-[9px] font-medium">${dateStr}</p>` : ''}
+                `;
+                wrapper.appendChild(info);
+            }
+
+            return wrapper;
+        }
+
+        function showGallery(name, filter = "") {
+            trackAlbumView(name);
+            activePerson = name;
+            activeView = 'gallery';
+            
+            document.getElementById('header-name').innerText = name;
+            const avatarImg = document.getElementById('header-avatar');
+            const avatarIcon = document.getElementById('header-icon');
+            const headerContainer = document.getElementById('header-avatar-container');
+
+            let displayPhotos = [];
+
+            if (name === 'Favorites') {
+                displayPhotos = getVisiblePhotos().filter(f => favorites.has(f));
+                document.getElementById('header-count').innerText = `${displayPhotos.length} Saved`;
+                avatarImg.classList.add('hidden');
+                avatarIcon.classList.remove('hidden');
+                avatarIcon.className = "fa-solid fa-heart text-rose-500 text-lg";
+                headerContainer.className = "w-10 h-10 rounded-full shadow-sm ring-2 ring-white dark:ring-slate-700 flex items-center justify-center bg-rose-100 dark:bg-rose-900/30";
+                viewMode = 'grid'; 
+            } else if (name === 'All Photos') {
+                displayPhotos = getVisiblePhotos();
+                document.getElementById('header-count').innerText = `${displayPhotos.length} Total`;
+                avatarImg.classList.add('hidden');
+                avatarIcon.classList.remove('hidden');
+                avatarIcon.className = "fa-solid fa-layer-group text-blue-500 text-lg";
+                headerContainer.className = "w-10 h-10 rounded-full shadow-sm ring-2 ring-white dark:ring-slate-700 flex items-center justify-center bg-blue-100 dark:bg-blue-900/30";
+                headerContainer.style.backgroundColor = "";
+                viewMode = 'timeline';
+            } else {
+                const data = peopleData[name];
+                displayPhotos = data.photos;
+                document.getElementById('header-count').innerText = `${data.count} Photos`;
+                let thumbSrc = getThumbUrl(name);
+                avatarImg.src = thumbSrc;
+                
+                avatarImg.onerror = function() { 
+                    if(HIDDEN_ALBUMS.includes(name)) {
+                        this.classList.add('hidden');
+                        avatarIcon.classList.remove('hidden');
+                        avatarIcon.className = "fa-solid fa-user-secret text-slate-500 text-lg";
+                    } else {
+                        this.src = `https://ui-avatars.com/api/?name=${name}`; 
+                        this.classList.remove('hidden');
+                    }
+                };
+                
+                avatarImg.classList.remove('hidden');
+                avatarIcon.classList.add('hidden');
+                headerContainer.className = "w-10 h-10 rounded-full overflow-hidden shadow-sm ring-2 ring-white dark:ring-slate-700 bg-slate-100 dark:bg-slate-800";
+                viewMode = 'grid';
+            }
+
+            const toggleBtn = document.querySelector('#view-toggle-btn i');
+            if (viewMode === 'timeline') {
+                toggleBtn.classList.remove('fa-calendar-days');
+                toggleBtn.classList.add('fa-grip-vertical');
+            } else {
+                toggleBtn.classList.remove('fa-grip-vertical');
+                toggleBtn.classList.add('fa-calendar-days');
+            }
+
+            if (filter) displayPhotos = displayPhotos.filter(f => f.toLowerCase().includes(filter));
+            currentGallery = displayPhotos; 
+
+            renderActiveGalleryContent();
+
+            document.getElementById('people-view').classList.add('hidden');
+            const galleryView = document.getElementById('gallery-view');
+            galleryView.classList.remove('hidden');
+            galleryView.classList.remove('animate-enter');
+            void galleryView.offsetWidth; 
+            galleryView.classList.add('animate-enter');
+            window.scrollTo(0,0);
+        }
+
+        function goBack() {
+            activePerson = null;
+            activeView = 'people';
+            document.getElementById('gallery-view').classList.add('hidden');
+            const peopleView = document.getElementById('people-view');
+            peopleView.classList.remove('hidden');
+            peopleView.classList.remove('animate-enter');
+            void peopleView.offsetWidth; 
+            peopleView.classList.add('animate-enter');
+            document.getElementById('searchInput').value = '';
+            renderThumbnails(); 
+        }
+
+        const lightbox = document.getElementById('lightbox');
+        const lbImg = document.getElementById('lightbox-img');
+        const lbVideo = document.getElementById('lightbox-video');
+        const lbCaption = document.getElementById('lightbox-caption');
+        const lbCounter = document.getElementById('lb-counter');
+
+        function openLightbox(index) {
+            currentPhotoIndex = index;
+            updateLightboxContent();
+            lightbox.classList.remove('hidden');
+            setTimeout(() => { lightbox.classList.remove('opacity-0'); lbImg.classList.remove('scale-95'); }, 10);
+        }
+
+        function updateLightboxContent() {
+            if(isEditing) closeEditor();
+            // Also reset tools panel if open
+            if(isLbToolsOpen) toggleLbTools();
+            
+            if (currentGallery.length === 0) return;
+            const filename = currentGallery[currentPhotoIndex];
+            const src = `${PATH_TO_IMAGES}${filename}`;
+            
+            const favIcon = document.querySelector('#lb-fav-btn i');
+            if (favorites.has(filename)) {
+                favIcon.classList.remove('fa-regular');
+                favIcon.classList.add('fa-solid', 'text-red-500');
+            } else {
+                favIcon.classList.remove('fa-solid', 'text-red-500');
+                favIcon.classList.add('fa-regular');
+            }
+
+            lbCaption.innerText = filename;
+            lbCounter.innerText = `${currentPhotoIndex + 1} / ${currentGallery.length}`;
+            lbImg.classList.add('hidden');
+            lbVideo.classList.add('hidden');
+            lbVideo.pause();
+            
+            // We need to grab the buttons inside the panel now
+            const editBtn = document.getElementById('lb-edit-btn');
+            
+            if (filename.toLowerCase().endsWith('.mp4')) {
+                lbVideo.classList.remove('hidden');
+                lbVideo.src = src;
+                lbVideo.play();
+                if(editBtn) editBtn.classList.add('hidden');
+            } else {
+                lbImg.classList.remove('hidden');
+                lbImg.src = src;
+                lbImg.onerror = function() {
+                    const name = filename.split('-')[0] || filename.split('_')[0];
+                    this.src = `https://ui-avatars.com/api/?name=${name}&background=random`;
+                };
+                
+                lbImg.style.filter = '';
+                lbImg.style.transform = '';
+                if(editBtn) editBtn.classList.remove('hidden');
+            }
+        }
+
+        function nextImage() {
+            currentPhotoIndex = (currentPhotoIndex < currentGallery.length - 1) ? currentPhotoIndex + 1 : 0;
+            updateLightboxContent();
+        }
+        function prevImage() {
+            currentPhotoIndex = (currentPhotoIndex > 0) ? currentPhotoIndex - 1 : currentGallery.length - 1;
+            updateLightboxContent();
+        }
+        function closeLightbox() {
+            if (slideshowInterval) toggleSlideshow(); 
+            if (isEditing) closeEditor();
+            
+            lightbox.classList.add('opacity-0');
+            lbImg.classList.add('scale-95');
+            setTimeout(() => { lightbox.classList.add('hidden'); lbVideo.pause(); }, 300);
+        }
+        
+        lightbox.addEventListener('click', (e) => {
+            if (isEditing) return; 
+            if (e.target === lightbox || (e.target.closest('.relative') === null && e.target.closest('#editor-ui') === null && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'I' && e.target.tagName !== 'INPUT')) closeLightbox();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (lightbox.classList.contains('hidden')) return;
+            if (e.key === 'Escape') closeLightbox();
+            if (!isEditing && e.key === 'ArrowRight') nextImage();
+            if (!isEditing && e.key === 'ArrowLeft') prevImage();
+        });
+
+        window.onload = init;
+    </script>
+  <script src="data.js"></script>
+    
+</body>
+</html>
+
